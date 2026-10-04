@@ -1,3 +1,7 @@
 explanations.md
 build/
 *.o
+.vscode
+output.*
+scatter.svg
+analytics

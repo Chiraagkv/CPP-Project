@@ -36,9 +36,9 @@ public:
 
     void loadCSV(const string& filename);
 
-    DataSet filter(const Filter& f) const;
+    DataSet filter(const string& colName, const Filter& f) const;
     DataSet filterBy(const string& colName, auto condition) const {
-        return filter(Filter(colName, condition));
+        return filter(colName, Predicate(condition));
     }
 
     void print() const;

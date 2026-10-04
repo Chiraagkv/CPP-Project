@@ -5,6 +5,7 @@
 \usepackage{lmodern}
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{graphicx}
+\usepackage{pdflscape}
 \usepackage{float}
 \usepackage{booktabs}
 \usepackage{tabularx}
@@ -44,8 +45,7 @@
 
 \title{\textbf{Data Analytics Library in C++}\\[4pt]
 \large An Object-Oriented Design Project}
-\author{Name: \rule{5cm}{0.4pt} \qquad Roll No.: \rule{3.5cm}{0.4pt}\\[4pt]
-Course: \rule{6cm}{0.4pt}}
+\author{Chiraag K V, Vivek Reddy, Utkarsh Gupta, Russel Gandhi}
 \date{October 2026}
 
 \begin{document}
@@ -55,7 +55,7 @@ Course: \rule{6cm}{0.4pt}}
 \begin{abstract}
 This report presents a small data analytics library written in C++20. The library loads tabular data
 from CSV files into typed columns, computes statistics (mean and median), filters rows using
-arbitrary conditions, exports results to CSV and JSON, and renders scatter plots as SVG images.
+composable condition objects, exports results to CSV and JSON, and renders scatter plots as SVG images.
 The emphasis of the project is on \emph{object-oriented design}: the system is decomposed into
 entities with single responsibilities that collaborate through abstract interfaces. The
 implementation demonstrates inheritance, multiple and virtual inheritance, runtime polymorphism,
@@ -82,7 +82,7 @@ writing new classes rather than by modifying existing ones.
 \begin{enumerate}[noitemsep]
   \item Store heterogeneous, typed columns in a single \code{DataSet}.
   \item Compute statistics through interchangeable algorithms.
-  \item Filter rows with user-supplied conditions.
+  \item Filter rows with reusable, composable conditions.
   \item Import and export data in CSV and JSON formats.
   \item Produce a basic scatter-plot visualisation (SVG).
   \item Demonstrate core C++ OOP features and manage memory without manual \code{new}/\code{delete}.
@@ -108,7 +108,8 @@ data between files and memory. Table~\ref{tab:components} summarises the compone
 \midrule
 \code{DataSet} & Central entity; holds a collection of columns & Yes & \code{DataSet.hpp/.cpp} \\
 \code{ColumnBase}, \code{Column<T>} & A named, typed sequence of values & Yes & \code{ColumnBase.hpp}, \code{Column.hpp} \\
-\code{Filter} & Represents a condition on a column & No & \code{Filter.hpp/.cpp} \\
+\code{Filter} & Applies a condition to a named column & No & \code{Filter.hpp/.cpp} \\
+\code{Condition} \& subclasses & A test on a single value, combinable with And/Or/Not & No & \code{Condition.hpp/.cpp} \\
 \code{IAnalyzer}, \code{StatisticsEngine} & Compute statistics (Strategy pattern) & No & \code{Analyzer.hpp/.cpp} \\
 \code{IImporter}, \code{IExporter} & CSV and JSON input/output & No & \code{IO.hpp/.cpp} \\
 \code{IVisualizer}, \code{ScatterPlot} & Render data as an SVG scatter plot & No & \code{Visualizer.hpp/.cpp} \\
@@ -119,7 +120,7 @@ data between files and memory. Table~\ref{tab:components} summarises the compone
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.72\textwidth]{supporting/flow.png}
+  \includegraphics[width=0.72\textwidth,height=0.8\textheight,keepaspectratio]{supporting/flow.png}
   \caption{Layered architecture: operations read from the core; the I/O layer imports and exports it.}
   \label{fig:arch}
 \end{figure}
@@ -132,7 +133,7 @@ filtered result is exported to CSV and JSON.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{supporting/example.png}
+  \includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{supporting/example.png}
   \caption{Data flow from CSV input to statistics, SVG plot and exported files.}
   \label{fig:dataflow}
 \end{figure}
@@ -140,22 +141,25 @@ filtered result is exported to CSV and JSON.
 \subsection{Memory Ownership}
 
 Ownership is expressed in the type system. A \code{DataSet} owns its columns and a
-\code{StatisticsEngine} owns its analyzers through \code{std::unique\_ptr}; all other access is
-non-owning, through raw pointers or references (Figure~\ref{fig:memory}).
+\code{StatisticsEngine} owns its analyzers through \code{std::unique\_ptr}. Conditions are the
+one exception: they are immutable, so a \code{Filter} and any composite condition hold them
+through \code{std::shared\_ptr}, which lets filters be copied and reused cheaply. All other access
+is non-owning, through raw pointers or references (Figure~\ref{fig:memory}).
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.6\textwidth]{supporting/memory.png}
-  \caption{Ownership graph: solid arrows own (\code{unique\_ptr}), dotted arrows borrow.}
+  \includegraphics[width=0.9\textwidth,height=0.8\textheight,keepaspectratio]{supporting/memory.png}
+  \caption{Ownership graph: solid arrows own (\code{unique\_ptr}), thick arrows share ownership (\code{shared\_ptr}), dotted arrows borrow.}
   \label{fig:memory}
 \end{figure}
 
 \subsection{Project Structure}
 
 \begin{lstlisting}[language={},basicstyle=\ttfamily\small]
-include/   Exceptions.hpp  ColumnBase.hpp  Column.hpp  Filter.hpp
-           DataSet.hpp     Analyzer.hpp    IO.hpp      Visualizer.hpp
-src/       DataSet.cpp     Filter.cpp      Analyzer.cpp
+include/   Exceptions.hpp  ColumnBase.hpp  Column.hpp  Condition.hpp
+           Filter.hpp      DataSet.hpp     Analyzer.hpp  IO.hpp
+           Visualizer.hpp
+src/       DataSet.cpp     Condition.cpp   Filter.cpp    Analyzer.cpp
            IO.cpp          Visualizer.cpp  main.cpp
 data/      employees.csv
 Makefile   (g++ -std=c++20 -Wall -Wextra -pedantic)
@@ -165,20 +169,22 @@ Makefile   (g++ -std=c++20 -Wall -Wextra -pedantic)
 \section{Class Definitions}
 %=====================================================================
 
-The library's interface is spread over eight header files in \code{include/}. This section
+The library's interface is spread over nine header files in \code{include/}. This section
 describes what each header contains: its classes, their data members, and the role of each
 important member function. Each module begins with its UML class diagram. In the diagrams,
 \emph{italic} methods are pure virtual, \code{-} marks private members, \code{\#} marks protected
 members, and \code{+} marks public members.
 
-\subsection{Core: DataSet, Columns and Filter}
-
+\begin{landscape}
 \begin{figure}[H]
   \centering
-  \includegraphics[height=0.82\textheight,keepaspectratio]{UML/DF.png}
+  \includegraphics[width=\linewidth,height=0.85\textheight,keepaspectratio]{UML/DF.png}
   \caption{UML class diagram of the core package.}
   \label{fig:uml-core}
 \end{figure}
+\end{landscape}
+
+\subsection{Core: DataSet, Columns, Filter and Conditions}
 
 \subsubsection*{ColumnBase.hpp}
 
@@ -235,25 +241,60 @@ types together. It can be moved but not copied, because \code{unique\_ptr} canno
   \item[\code{rowCount()}, \code{columnCount()}, \code{columnNames()}, \code{columnAt(i)}] Describe
     the data set's shape and give access to columns by position.
   \item[\code{loadCSV(filename)}] Replaces the contents with data read through \code{CSVHandler}.
-  \item[\code{filter(f)}, \code{filterBy(colName, condition)}] Return a new \code{DataSet}
-    containing only matching rows. \code{filterBy} uses a C++20 \code{auto} parameter so any
-    callable can be passed, and wraps it in a \code{Filter}.
+  \item[\code{filter(colName, f)}] Returns a new \code{DataSet} containing only the rows whose
+    value in \code{colName} satisfies the filter, for example
+    \code{ds.filter("age", GreaterThan(30))}. The column is chosen here rather than when the
+    filter is built, so one \code{Filter} can be reused on any data set or column.
+  \item[\code{filterBy(colName, condition)}] Convenience overload for one-off conditions. It uses
+    a C++20 \code{auto} parameter so any callable can be passed, and wraps it in a
+    \code{Predicate}.
   \item[\code{print()}] Prints the data set's dimensions and every column.
 \end{description}
 
 \subsubsection*{Filter.hpp}
 
-Declares \code{Filter}, which represents a condition on one column. It stores the column name and
-the condition as a \code{function<bool(double)>}. The constructor rejects an empty condition.
-Its single operation, \code{matchingRows(ds)}, checks that the column exists and is numeric, then
-returns the indices of the rows for which the condition is true. \code{DataSet} is only
-forward-declared here, which avoids a circular include between the two headers.
+Declares \code{Filter}, which applies a \code{Condition} to a column. Its only data member is a
+\code{shared\_ptr<const Condition>}. The constructor is a template constrained by the
+\code{ConditionType} concept, so any \code{Condition} subclass can be passed by value and is
+converted implicitly; this is what allows \code{ds.filter("age", GreaterThan(30))}. Its single
+operation, \code{matchingRows(ds, columnName)}, checks that the column exists and is numeric, then
+returns the indices of the rows for which the condition's \code{test} is true. \code{DataSet} is
+only forward-declared here, which avoids a circular include between the two headers.
+
+\subsubsection*{Condition.hpp}
+
+Declares the abstract class \code{Condition} and its subclasses, arranged as a Composite
+(Section~\ref{sec:composite}). \code{Condition} has a virtual destructor and one pure virtual
+function, \code{test(value)}, which says whether a single \code{double} satisfies the condition.
+The header also defines the concept \code{ConditionType}, which accepts any type derived from
+\code{Condition}.
+
+\begin{description}[noitemsep,leftmargin=1.5em]
+  \item[\code{GreaterThan}, \code{LessThan}, \code{Equals}] Compare the value against a stored
+    threshold or target.
+  \item[\code{Between}] True when the value lies in the closed range $[\mathit{low}, \mathit{high}]$.
+    The constructor throws \code{DataException} if \code{low > high}.
+  \item[\code{AndCondition}, \code{OrCondition}] Hold two child conditions and combine their
+    results with \code{\&\&} or \code{||}. Evaluation short-circuits.
+  \item[\code{NotCondition}] Holds one child condition and negates it; for example
+    \code{NotCondition(LessThan(30))} expresses ``at least 30''.
+  \item[\code{Predicate}] Wraps a \code{function<bool(double)>} for conditions the classes above do
+    not cover. The constructor rejects an empty function.
+\end{description}
+
+Composite conditions store their children as \code{shared\_ptr<const Condition>}, built from
+concept-constrained template constructors, so they nest freely:
+\begin{lstlisting}
+Filter f = AndCondition(Between(25, 40), NotCondition(Equals(30)));
+DataSet a = ds.filter("age", f);
+DataSet b = other.filter("experience", f);   // same filter, different data
+\end{lstlisting}
 
 \subsection{Analytics: Strategy Pattern}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.62\textwidth]{UML/Analyser.png}
+  \includegraphics[width=0.62\textwidth,height=0.8\textheight,keepaspectratio]{UML/Analyser.png}
   \caption{UML class diagram of the analytics package.}
   \label{fig:uml-analytics}
 \end{figure}
@@ -280,7 +321,7 @@ Contains the analytics module, built on the Strategy pattern.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.85\textwidth]{UML/io.png}
+  \includegraphics[width=0.85\textwidth,height=0.8\textheight,keepaspectratio]{UML/io.png}
   \caption{UML class diagram of the I/O and visualisation packages.}
   \label{fig:uml-io}
 \end{figure}
@@ -355,16 +396,16 @@ with a short excerpt from the code.
 \toprule
 \textbf{Concept} & \textbf{Usage in the project} \\
 \midrule
-Abstraction & Pure virtual interfaces \code{ColumnBase}, \code{IAnalyzer}, \code{FileFormat}, \code{IImporter}, \code{IExporter}, \code{IVisualizer} \\
+Abstraction & Pure virtual interfaces \code{ColumnBase}, \code{Condition}, \code{IAnalyzer}, \code{FileFormat}, \code{IImporter}, \code{IExporter}, \code{IVisualizer} \\
 Encapsulation & Private column data and column list; \code{addColumn} enforces invariants \\
-Inheritance & \code{Column<T>}, analyzers, exporters, \code{ScatterPlot}, exception classes \\
+Inheritance & \code{Column<T>}, condition classes, analyzers, exporters, \code{ScatterPlot}, exception classes \\
 Multiple inheritance & \code{CSVHandler : IImporter, IExporter}; \code{ScatterPlot : IVisualizer, FileFormat} \\
 Virtual inheritance & \code{IImporter} and \code{IExporter} inherit \code{virtual FileFormat} \\
-Runtime polymorphism & Heterogeneous \code{vector<unique\_ptr<ColumnBase>>}; analyzer, exporter and visualiser calls through base references \\
-Templates & \code{Column<T>}, \code{TypeName<T>} specialisation, \code{if constexpr}, \code{getColumnAs<T>()}, \code{auto} parameter \\
+Runtime polymorphism & Heterogeneous \code{vector<unique\_ptr<ColumnBase>>}; \code{Condition::test} calls from \code{Filter}; analyzer, exporter and visualiser calls through base references \\
+Templates & \code{Column<T>}, \code{TypeName<T>} specialisation, \code{if constexpr}, \code{getColumnAs<T>()}, \code{auto} parameter, \code{ConditionType} concept \\
 Exception handling & \code{DataException} hierarchy; catch by \code{const} reference \\
-Smart pointers & \code{unique\_ptr} and \code{make\_unique} throughout; move-only \code{DataSet} \\
-Design pattern & Strategy pattern for analyzers \\
+Smart pointers & \code{unique\_ptr} and \code{make\_unique} throughout; \code{shared\_ptr} for immutable conditions; move-only \code{DataSet} \\
+Design patterns & Strategy pattern for analyzers; Composite pattern for conditions \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -384,7 +425,8 @@ public:
 \end{lstlisting}
 
 The rest of the library (filters, analyzers, exporters, the plotter) depends only on such
-interfaces, never on concrete column types.
+interfaces, never on concrete column types. Likewise, \code{Filter} only calls
+\code{Condition::test} and never knows which kind of condition it holds.
 
 \subsection{Encapsulation}
 
@@ -476,7 +518,19 @@ reference using \code{dynamic\_cast}, and \code{filterBy} uses a C++20 \code{aut
 accept any callable:
 \begin{lstlisting}
 auto& ages = ds.getColumnAs<int>("age");
-DataSet older = ds.filterBy("age", [](double a) { return a > 30; });
+DataSet even = ds.filterBy("age", [](double a) { return (int)a % 2 == 0; });
+\end{lstlisting}
+
+\paragraph{Concepts.} The C++20 concept \code{ConditionType} restricts the constructor templates
+of \code{Filter} and the composite conditions to types derived from \code{Condition}. Passing
+anything else is rejected at compile time with a readable error, instead of failing deep inside
+\code{make\_shared}:
+\begin{lstlisting}
+template <typename C>
+concept ConditionType = derived_from<C, Condition>;
+
+template <ConditionType C>
+Filter(C cond) : condition(make_shared<C>(move(cond))) {}
 \end{lstlisting}
 
 \subsection{Exception Handling}
@@ -526,7 +580,13 @@ ds.addColumn(move(col));   // ownership passes to the DataSet
 Because \code{unique\_ptr} cannot be copied, \code{DataSet} is \emph{move-only}; functions such as
 \code{filter()} return a new \code{DataSet} by value, which is moved rather than copied.
 
-\subsection{Strategy Pattern}
+Conditions use \code{shared\_ptr<const Condition>} instead. They never change after construction,
+so sharing them is safe, and it makes \code{Filter} and the composite conditions cheap to copy: a
+copy shares the same condition tree rather than duplicating it.
+
+\subsection{Design Patterns}
+
+\subsubsection*{Strategy}
 
 Each analyzer is an interchangeable strategy. Adding a new statistic, such as standard deviation,
 requires only one new class overriding \code{analyze()}; no existing class changes, in line with
@@ -537,6 +597,21 @@ StatisticsEngine engine;
 engine.addAnalyzer(make_unique<MeanAnalyzer>());
 engine.addAnalyzer(make_unique<MedianAnalyzer>());
 engine.report(*ds.getColumn("salary"));
+\end{lstlisting}
+
+\subsubsection*{Composite}
+\label{sec:composite}
+
+Conditions follow the Composite pattern. Simple conditions (\code{GreaterThan}, \code{Between},
+\ldots) are leaves; \code{AndCondition}, \code{OrCondition} and \code{NotCondition} are composites
+that hold other conditions and are themselves conditions. Clients treat both the same way, by
+calling \code{test()}, so arbitrarily nested expressions can be built without changing
+\code{Filter}. A new kind of condition only needs a new subclass that overrides \code{test()}.
+
+\begin{lstlisting}
+// 25 <= age <= 40, excluding 30, or anyone over 55
+Filter f = OrCondition(AndCondition(Between(25, 40), NotCondition(Equals(30))),
+                       GreaterThan(55));
 \end{lstlisting}
 
 %=====================================================================
@@ -561,7 +636,7 @@ age & 33.5 & 32 \\
 \end{tabular}
 \end{table}
 
-Filtering on \code{age > 30} returned 6 of the 10 rows, which were exported to
+Filtering the \emph{age} column with \code{GreaterThan(30)} returned 6 of the 10 rows, which were exported to
 \code{output.csv} and \code{output.json}. Every deliberate error case (missing column, numeric
 operation on a string column, wrong typed access, missing file, wrong plot extension, duplicate
 column) raised the expected exception. The project compiles without warnings under
@@ -569,7 +644,7 @@ column) raised the expected exception. The project compiles without warnings und
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.75\textwidth]{supporting/scatter.png}
+  \includegraphics[width=0.75\textwidth,height=0.8\textheight,keepaspectratio]{supporting/scatter.png}
   \caption{SVG scatter plot of salary against experience, produced by \code{ScatterPlot}.}
   \label{fig:scatter}
 \end{figure}
@@ -580,17 +655,17 @@ column) raised the expected exception. The project compiles without warnings und
 
 Designing around entities and interfaces rather than free functions produced a library that is
 easy to extend and safe to use. New statistics, file formats and chart types can each be added as a
-single new class without modifying existing code. Smart pointers eliminate manual memory
+single new class without modifying existing code, and filter conditions can be combined freely
+through the Composite pattern. Smart pointers eliminate manual memory
 management, and the exception hierarchy makes failures explicit and easy to handle.
 
 \paragraph{Limitations and future work.} Filters currently support only numeric columns, the CSV
 parser does not handle quoted fields, and JSON is export-only. Additional analyzers (standard
-deviation, correlation) and chart types (line, bar) can be added by subclassing \code{IAnalyzer}
-and \code{IVisualizer}.
+deviation, correlation), chart types (line, bar) and conditions can be added by subclassing
+\code{IAnalyzer}, \code{IVisualizer} and \code{Condition}.
 
 \begin{thebibliography}{9}
 \bibitem{stroustrup} B.~Stroustrup, \emph{The C++ Programming Language}, 4th ed. Addison-Wesley, 2013.
-\bibitem{gof} E.~Gamma, R.~Helm, R.~Johnson, J.~Vlissides, \emph{Design Patterns: Elements of Reusable Object-Oriented Software}. Addison-Wesley, 1994.
 \bibitem{cppref} cppreference.com, \emph{C++ Reference}. \url{https://en.cppreference.com}
 \end{thebibliography}
 

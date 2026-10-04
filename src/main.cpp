@@ -48,7 +48,7 @@ int main() {
         engine.report(*ds.getColumn("age"));
 
         section("Filter: age > 30");
-        DataSet older = ds.filterBy("age", [](double a) { return a > 30; });
+        DataSet older = ds.filter("age", GreaterThan(30));
         older.print();
 
         section("Scatter plot");

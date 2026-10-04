@@ -8,7 +8,7 @@ It is built to show OOP design: inheritance, multiple and virtual inheritance, r
 - **DataSet** with typed columns (`Column<int>`, `Column<double>`, `Column<string>`)
 - **CSV import** with automatic column type inference
 - **Analytics:** mean and median (Strategy pattern), run together through a `StatisticsEngine`
-- **Filtering** with any lambda, for example `ds.filterBy("age", [](double a) { return a > 30; })`
+- **Filtering** with reusable condition objects that can be combined (Composite pattern), for example `ds.filter("age", GreaterThan(30))`. A lambda still works for one-off conditions.
 - **Export** to CSV and JSON
 - **SVG scatter plot** of any two numeric columns (open it in any browser)
 - **Custom exception hierarchy**
@@ -20,13 +20,15 @@ It is built to show OOP design: inheritance, multiple and virtual inheritance, r
 │   ├── Exceptions.hpp   # DataException hierarchy
 │   ├── ColumnBase.hpp   # abstract column interface
 │   ├── Column.hpp       # Column<T> template (header-only)
-│   ├── Filter.hpp       # condition on a column
+│   ├── Condition.hpp    # Condition hierarchy (GreaterThan, Between, And/Or/Not, ...)
+│   ├── Filter.hpp       # applies a Condition to a named column
 │   ├── DataSet.hpp      # central entity, owns the columns
 │   ├── Analyzer.hpp     # IAnalyzer, Mean/Median, StatisticsEngine
 │   ├── IO.hpp           # FileFormat, IImporter, IExporter, CSVHandler, JSONExporter
 │   └── Visualizer.hpp   # IVisualizer, ScatterPlot (SVG)
 ├── src/
 │   ├── DataSet.cpp
+│   ├── Condition.cpp
 │   ├── Filter.cpp
 │   ├── Analyzer.cpp
 │   ├── IO.cpp
@@ -65,7 +67,7 @@ engine.addAnalyzer(make_unique<MeanAnalyzer>());
 engine.addAnalyzer(make_unique<MedianAnalyzer>());
 engine.report(*ds.getColumn("salary"));
 
-DataSet seniors = ds.filterBy("age", [](double a) { return a > 30; });
+DataSet seniors = ds.filter("age", GreaterThan(30));
 
 ScatterPlot().plot(ds, "experience", "salary", "scatter.svg");
 
@@ -78,6 +80,26 @@ try {
 } catch (const ColumnNotFoundException& e) {
     cerr << e.what() << '\n';
 }
+```
+
+Combining conditions. The column is chosen when the filter is applied, so one filter can be reused on any dataset or column:
+```cpp
+Filter midCareer = AndCondition(Between(25, 40), NotCondition(Equals(30)));
+DataSet a = ds.filter("age", midCareer);
+DataSet b = ds.filter("experience", midCareer);
+```
+
+| Condition | True when |
+|---|---|
+| `GreaterThan(x)`, `LessThan(x)`, `Equals(x)` | value `>`, `<`, `==` x |
+| `Between(lo, hi)` | `lo <= value <= hi` (throws if `lo > hi`) |
+| `AndCondition(a, b)`, `OrCondition(a, b)` | both / either of `a`, `b` hold |
+| `NotCondition(c)` | `c` does not hold |
+| `Predicate(fn)` | `fn(value)` returns true |
+
+For a one-off condition, `filterBy` takes any callable and wraps it in a `Predicate`:
+```cpp
+DataSet even = ds.filterBy("age", [](double a) { return (int)a % 2 == 0; });
 ```
 
 Building a dataset by hand:
@@ -99,6 +121,7 @@ manual.addColumn(move(col));
 - **New statistic:** subclass `IAnalyzer` and override `analyze()` and `name()`.
 - **New file format:** subclass `IImporter` and/or `IExporter` and override `extension()`.
 - **New chart type:** subclass `IVisualizer` and override `plot()`.
+- **New filter condition:** subclass `Condition` and override `test()`.
 
 ## Limitations
 Filters only work on numeric columns, the CSV parser doesn't handle quoted fields, and JSON can only be exported, not imported. See [explanations.md](explanations.md#7-known-limitations-kept-out-deliberately-for-simplicity).

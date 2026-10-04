@@ -45,8 +45,8 @@ void DataSet::loadCSV(const string& filename) {
     *this = CSVHandler().importFrom(filename);
 }
 
-DataSet DataSet::filter(const Filter& f) const {
-    vector<size_t> rows = f.matchingRows(*this);
+DataSet DataSet::filter(const string& colName, const Filter& f) const {
+    vector<size_t> rows = f.matchingRows(*this, colName);
     DataSet result;
     for (const auto& c : columns) result.addColumn(c->select(rows));
     return result;

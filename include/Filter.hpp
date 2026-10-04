@@ -1,6 +1,8 @@
 #pragma once
 
-#include <functional>
+#include "Condition.hpp"
+
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -10,12 +12,11 @@ class DataSet;
 
 class Filter {
 private:
-    string column;
-    function<bool(double)> condition;
+    shared_ptr<const Condition> condition;
 
 public:
-    Filter(string columnName, function<bool(double)> cond);
+    template <ConditionType C>
+    Filter(C cond) : condition(make_shared<C>(move(cond))) {}
 
-    const string& getColumn() const { return column; }
-    vector<size_t> matchingRows(const DataSet& ds) const;
+    vector<size_t> matchingRows(const DataSet& ds, const string& columnName) const;
 };
