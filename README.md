@@ -2,7 +2,7 @@
 
 A small, object-oriented data analytics library in modern C++ (C++20). It loads tabular data, computes statistics, filters rows, exports to CSV/JSON, and exports scatter plots as SVG images.
 
-It is built to show OOP design: inheritance, multiple and virtual inheritance, runtime polymorphism, templates, exception handling, and smart-pointer memory management. See **[explanations.md](explanations.md)** for the design reasoning.
+It is built to show OOP design: inheritance, multiple and virtual inheritance, runtime polymorphism, templates, exception handling, and smart-pointer memory management.
 
 ## Features
 - **DataSet** with typed columns (`Column<int>`, `Column<double>`, `Column<string>`)
@@ -124,4 +124,4 @@ manual.addColumn(move(col));
 - **New filter condition:** subclass `Condition` and override `test()`.
 
 ## Limitations
-Filters only work on numeric columns, the CSV parser doesn't handle quoted fields, and JSON can only be exported, not imported. See [explanations.md](explanations.md#7-known-limitations-kept-out-deliberately-for-simplicity).
+Filters only work on numeric columns, the CSV parser doesn't handle quoted fields, and JSON can only be exported, not imported.
