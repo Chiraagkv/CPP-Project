@@ -1,0 +1,8 @@
+[
+  {"name": "Bob", "age": 35, "department": "Marketing", "experience": 10, "salary": 81000},
+  {"name": "Charlie", "age": 42, "department": "Engineering", "experience": 18, "salary": 115000},
+  {"name": "Ethan", "age": 31, "department": "Engineering", "experience": 7, "salary": 88000},
+  {"name": "Fiona", "age": 38, "department": "Sales", "experience": 13, "salary": 79000},
+  {"name": "Hannah", "age": 45, "department": "Engineering", "experience": 20, "salary": 125000},
+  {"name": "Ivan", "age": 33, "department": "Sales", "experience": 8, "salary": 66000}
+]
