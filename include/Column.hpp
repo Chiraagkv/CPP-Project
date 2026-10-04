@@ -10,10 +10,26 @@
 
 using namespace std;
 
-template <typename T> struct TypeName       { static string get() { return "unknown"; } };
-template <> struct TypeName<int>            { static string get() { return "int"; } };
-template <> struct TypeName<double>         { static string get() { return "double"; } };
-template <> struct TypeName<string>    { static string get() { return "string"; } };
+template <typename T> struct TypeName {
+    static string get() {
+        return "unknown";
+    } 
+};
+template <> struct TypeName<int>{
+    static string get() {
+        return "int";
+    }
+};
+template <> struct TypeName<double>{
+    static string get() {
+        return "double";
+    }
+};
+template <> struct TypeName<string>{
+    static string get() {
+        return "string";
+    }
+};
 
 template <typename T>
 class Column : public ColumnBase {
@@ -24,7 +40,9 @@ private:
 public:
     explicit Column(string n) : name(move(n)) {}
 
-    void addValue(T val) { data.push_back(move(val)); }
+    void addValue(T val) {
+        data.push_back(move(val));
+    }
 
     const T& at(size_t i) const {
         if (i >= data.size())
